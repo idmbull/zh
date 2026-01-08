@@ -3,6 +3,16 @@ import { convertMarkdownToPlain } from "../utils.js";
 
 const TIMESTAMP_REGEX = /^([\d.]+)\s+([\d.]+)/;
 
+// Hàm kiểm tra ký tự CJK (Trung/Nhật/Hàn) và dấu câu toàn khổ
+function isCJK(char) {
+    if (!char) return false;
+    // \u3000-\u303f: CJK Symbols and Punctuation (bao gồm dấu 。 ， 、)
+    // \uff00-\uffef: Fullwidth Forms (bao gồm dấu chấm hỏi ？ chấm than ！)
+    // \u4e00-\u9fa5: CJK Unified Ideographs (Chữ Hán)
+    // \uac00-\ud7af: Hangul (Tiếng Hàn)
+    return /[\u3000-\u303f\uff00-\uffef\u4e00-\u9fa5\uac00-\ud7af]/.test(char);
+}
+
 // Hàm làm sạch cơ bản cho metadata
 function cleanText(text) {
     if (!text) return "";
@@ -95,7 +105,6 @@ export function parseUnified(rawContent) {
 
     // BƯỚC 3: Chuẩn hóa lần cuối
     // [FIX QUAN TRỌNG] Chỉ trimEnd(). 
-    // Nếu trimStart(), ta sẽ xóa mất khoảng trắng mà người dùng nhìn thấy trên màn hình (do skipped text để lại).
     if (result.text) {
         result.text = result.text.trimEnd();
     }
@@ -138,6 +147,9 @@ function formatHtmlContent(text) {
 function assembleData(blocks, result) {
     let currentParagraphHtml = "";
 
+    // Biến theo dõi xem block trước đó có phải là ngắt đoạn không
+    let lastBlockWasBreak = false;
+
     const flushParagraph = () => {
         if (currentParagraphHtml) {
             result.html += `<p>${currentParagraphHtml}</p>`;
@@ -152,6 +164,7 @@ function assembleData(blocks, result) {
             if (block.type === 'header') {
                 result.html += `<h3 class="visual-header">${block.content}</h3>`;
             }
+            lastBlockWasBreak = true; // Đánh dấu là vừa có ngắt dòng/đoạn
             return;
         }
 
@@ -159,24 +172,34 @@ function assembleData(blocks, result) {
         const cleanFragment = cleanForTyping(block.content);
 
         // Kiểm tra xem sau khi lọc, block này có còn nội dung gõ không
-        // (Lưu ý: " " vẫn tính là có nội dung để nối từ)
         const hasTypingContent = cleanFragment.length > 0 && cleanFragment.trim().length > 0;
 
-        // Trường hợp đặc biệt: Dòng chỉ chứa Skipped Text (ví dụ: `Hidden`)
-        // cleanFragment sẽ là "" hoặc " ".
-        // Ta cần đảm bảo nó đóng vai trò như một separator (dấu cách) để không dính chữ.
         const isSkippedLine = !hasTypingContent && block.content.trim().length > 0;
 
         if (hasTypingContent) {
             // Logic nối chuỗi thông minh:
-            // Thêm dấu cách nếu text cũ chưa có và text mới không bắt đầu bằng dấu cách
             let prefix = "";
             if (result.text.length > 0) {
                 const endsWithSpace = result.text.endsWith(" ");
                 const startsWithSpace = cleanFragment.startsWith(" ");
 
                 if (!endsWithSpace && !startsWithSpace) {
+                    // MẶC ĐỊNH: Thêm dấu cách
                     prefix = " ";
+
+                    // LOGIC TÙY CHỈNH CHO CJK (TIẾNG TRUNG/HÀN):
+                    // Nếu KHÔNG PHẢI là chuyển đoạn (Break Paragraph)
+                    if (!lastBlockWasBreak) {
+                        const lastChar = result.text[result.text.length - 1];
+                        const firstChar = cleanFragment[0];
+
+                        // Nếu cả 2 ký tự giáp ranh đều là CJK -> XÓA dấu cách
+                        if (isCJK(lastChar) && isCJK(firstChar)) {
+                            prefix = "";
+                        }
+                    }
+                    // Nếu lastBlockWasBreak = true (vừa qua 1 dòng trống), 
+                    // giữ nguyên prefix=" " để tách đoạn văn ra.
                 }
             }
 
@@ -190,13 +213,15 @@ function assembleData(blocks, result) {
                     text: cleanFragment.trim()
                 });
             }
+
+            // Đã xử lý xong text block, reset trạng thái break
+            lastBlockWasBreak = false;
         }
         else if (isSkippedLine) {
-            // Nếu là dòng Skipped, chỉ thêm dấu cách vào result.text nếu chưa có.
-            // Điều này giúp tách dòng trước và dòng sau.
             if (result.text.length > 0 && !result.text.endsWith(" ")) {
                 result.text += " ";
             }
+            lastBlockWasBreak = false;
         }
 
         // Xử lý HTML
