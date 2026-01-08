@@ -135,6 +135,8 @@ function formatHtmlContent(text) {
         .replace(/_(.+?)_/g, "$1");
 }
 
+const REGEX_NO_SPACE_LANG = /[\u4e00-\u9fa5\u3040-\u309f\u30a0-\u30ff\u3000-\u303f\uff00-\uffef]/;
+
 function assembleData(blocks, result) {
     let currentParagraphHtml = "";
 
@@ -155,30 +157,32 @@ function assembleData(blocks, result) {
             return;
         }
 
-        // Xử lý Text cho Engine
         const cleanFragment = cleanForTyping(block.content);
-
-        // Kiểm tra xem sau khi lọc, block này có còn nội dung gõ không
-        // (Lưu ý: " " vẫn tính là có nội dung để nối từ)
         const hasTypingContent = cleanFragment.length > 0 && cleanFragment.trim().length > 0;
-
-        // Trường hợp đặc biệt: Dòng chỉ chứa Skipped Text (ví dụ: `Hidden`)
-        // cleanFragment sẽ là "" hoặc " ".
-        // Ta cần đảm bảo nó đóng vai trò như một separator (dấu cách) để không dính chữ.
         const isSkippedLine = !hasTypingContent && block.content.trim().length > 0;
 
         if (hasTypingContent) {
-            // Logic nối chuỗi thông minh:
-            // Thêm dấu cách nếu text cũ chưa có và text mới không bắt đầu bằng dấu cách
+            // --- [BẮT ĐẦU SỬA ĐỔI] ---
             let prefix = "";
             if (result.text.length > 0) {
+                // Lấy ký tự cuối của chuỗi cũ và ký tự đầu của chuỗi mới
+                const lastChar = result.text[result.text.length - 1];
+                const nextChar = cleanFragment[0];
+
                 const endsWithSpace = result.text.endsWith(" ");
                 const startsWithSpace = cleanFragment.startsWith(" ");
 
+                // Kiểm tra xem vị trí nối có dính dáng đến tiếng Trung/Nhật/Dấu câu fullwidth không
+                const isCJK = REGEX_NO_SPACE_LANG.test(lastChar) || REGEX_NO_SPACE_LANG.test(nextChar);
+
                 if (!endsWithSpace && !startsWithSpace) {
-                    prefix = " ";
+                    // CHỈ thêm dấu cách nếu KHÔNG PHẢI là nhóm ngôn ngữ không dùng dấu cách (CJK)
+                    if (!isCJK) {
+                        prefix = " ";
+                    }
                 }
             }
+            // --- [KẾT THÚC SỬA ĐỔI] ---
 
             result.charStarts.push(result.text.length + prefix.length);
             result.text += prefix + cleanFragment;
@@ -192,14 +196,11 @@ function assembleData(blocks, result) {
             }
         }
         else if (isSkippedLine) {
-            // Nếu là dòng Skipped, chỉ thêm dấu cách vào result.text nếu chưa có.
-            // Điều này giúp tách dòng trước và dòng sau.
             if (result.text.length > 0 && !result.text.endsWith(" ")) {
                 result.text += " ";
             }
         }
 
-        // Xử lý HTML
         const speakerHtml = block.speaker ? `<span class="speaker-label">${block.speaker}: </span>` : "";
         const contentHtml = formatHtmlContent(block.content);
         const htmlPrefix = currentParagraphHtml ? " " : "";
