@@ -111,42 +111,43 @@ export class ExerciseController {
 
     setupGlobalEvents() {
         document.onkeydown = (e) => {
-            // Cho phép gõ phím tắt ngay cả khi chưa Start, 
-            // nhưng logic Ctrl+Space cần handle cẩn thận
-            if (!Store.getState().isActive && e.code !== "Space") return;
+            // [SỬA ĐỔI] Cho phép phím Tab hoạt động ngay cả khi chưa Start
+            if (!Store.getState().isActive && e.code !== "Tab") return;
 
-            if (e.ctrlKey && e.code === "Space") {
-                e.preventDefault();
-                if (e.repeat) return;
+            // [SỬA ĐỔI] Thay Ctrl+Space bằng Tab
+            if (e.code === "Tab") {
+                e.preventDefault(); // Ngăn việc Tab chuyển focus sang phần tử khác
+                if (e.repeat) return; // Ngăn việc giữ phím gây spam
 
                 if (this.ctrlSpaceTimer) {
                     clearTimeout(this.ctrlSpaceTimer);
                     this.ctrlSpaceTimer = null;
+                    // Double Tab -> Replay word
                     this.callbacks.onCtrlSpaceDouble();
                 } else {
                     this.ctrlSpaceTimer = setTimeout(() => {
+                        // Single Tab -> Play Segment (hoặc Replay word nếu không có audio)
                         this.callbacks.onCtrlSpaceSingle();
                         this.ctrlSpaceTimer = null;
-                    }, 300);
+                    }, 300); // Thời gian chờ để nhận diện double tap (300ms)
                 }
                 return;
             }
 
+            // Phím tắt bật/tắt Blind Mode (Ctrl + B) - Giữ nguyên
             if (e.ctrlKey && e.code === "KeyB") {
                 e.preventDefault();
                 const newState = !Store.isBlind();
 
-                // Cập nhật UI Toggle
                 if (DOM.blindModeToggle) DOM.blindModeToggle.checked = newState;
 
-                // Cập nhật Logic & Storage
                 Store.setBlindMode(newState);
                 this.toggleBlindMode(newState);
                 localStorage.setItem('pref_blind', newState);
             }
         };
 
-        // Click bất kỳ đâu cũng focus vào ô input (trừ khi click vào nút/input khác)
+        // Click bất kỳ đâu cũng focus vào ô input
         document.onclick = (e) => {
             const t = e.target.tagName;
             if (!["BUTTON", "SELECT", "TEXTAREA", "INPUT", "LABEL"].includes(t)) {
