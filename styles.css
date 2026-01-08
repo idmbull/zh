@@ -110,80 +110,41 @@
     --shadow-color: rgba(0, 0, 0, 0.4);
     --toggle-bg: #555;
     --toggle-checked-bg: #8e2de2;
+    /* --font-ui: "Noto Sans SC", "PingFang SC", "Microsoft YaHei", "Heiti SC", sans-serif; */
+    /* Dùng font monospace hoặc font CJK tiêu chuẩn để các chữ thẳng hàng dọc */
+    --font-mono: "Noto Sans Mono CJK SC", "Microsoft YaHei", "SimHei", monospace;
+}
 
-    :root {
-        /* [MODIFIED] Thêm font tiếng Trung vào danh sách ưu tiên */
-        --font-ui: 'Microsoft YaHei', 'PingFang SC', 'Noto Sans SC', 'Segoe UI', Tahoma, sans-serif;
-        --font-mono: 'Microsoft YaHei', 'PingFang SC', 'PT Mono', 'Consolas', monospace;
+[data-theme="mandarin"] .text-display {
+    /* Font chữ */
+    font-family: var(--font-mono);
+    /* Tăng khoảng cách giữa các chữ một chút cho thoáng */
+    letter-spacing: 0.05em;
+    /* Căn đều 2 bên */
+    text-align: justify;
+    /* QUAN TRỌNG: Ngắt dòng ở bất kỳ ký tự nào để tránh rách dòng */
+    word-break: break-all;
+}
 
-        /* Colors - Light Theme (Default) */
-        --bg-primary: linear-gradient(135deg, #6a11cb 0%, #2575fc 100%);
-        --container-bg: rgba(255, 255, 255, 0.96);
-        --header-bg: linear-gradient(to right, #4a00e0, #8e2de2);
+/* Chữ hiện tại đang gõ (Cursor) */
+[data-theme="mandarin"] .current {
+    /* Viền bao quanh ký tự vuông vức hơn */
+    border-radius: 4px;
+    /* Padding nhẹ để background không dính sát nét chữ */
+    padding: 2px 0;
+}
 
-        --text-primary: #333;
-        --text-secondary: #666;
-        --text-light: #fff;
-        --text-muted: #888;
+/* Chữ gõ sai */
+[data-theme="mandarin"] .incorrect {
+    /* Đẩy gạch chân xuống thấp hơn để không cắt vào nét chữ Hán */
+    text-underline-offset: 0.25em;
+    text-decoration-thickness: 2px;
+}
 
-        --accent-color: #4a00e0;
-        --accent-gradient: linear-gradient(to right, #4a00e0, #8e2de2);
-
-        --correct-color: #28a745;
-        --incorrect-color: #e74c3c;
-        /* Giảm độ đậm nền đỏ để đỡ rối mắt với chữ Hán dày đặc */
-        --incorrect-bg: rgba(231, 76, 60, 0.1);
-
-        --section-bg: #f8f9fa;
-        --border-color: #e9ecef;
-        --shadow-color: rgba(0, 0, 0, 0.15);
-
-        --toggle-bg: #dfe6e9;
-        --toggle-checked-bg: #4a00e0;
-    }
-
-    /* ... (Giữ nguyên phần Theme Variations và Global Reset) ... */
-
-    /* [MODIFIED] Cập nhật Text Display cho thoáng hơn */
-    .text-display {
-        padding: 30px;
-        line-height: 2.0;
-        /* Tiếng Trung cần dòng thoáng hơn (cũ là 1.8) */
-        font-size: 1.4rem;
-        /* Chữ Hán cần to hơn chữ Latin một chút */
-        font-family: var(--font-mono);
-        /* Dùng font mono/YaHei để thẳng hàng */
-        color: var(--text-secondary);
-        white-space: pre-wrap;
-        word-wrap: break-word;
-        text-align: justify;
-        /* Canh đều 2 bên nhìn sẽ đẹp hơn cho khối văn bản */
-    }
-
-    /* ... (Các phần còn lại giữ nguyên, ĐẶC BIỆT LÀ CLASS .input-area ĐÃ FIX Ở BƯỚC 1) ... */
-
-    /* Đảm bảo class .input-area bạn đã sửa ở Bước 1 vẫn còn đó */
-    .input-area {
-        position: fixed;
-        top: 0;
-        left: 0;
-        width: 100px;
-        height: 30px;
-        opacity: 0;
-        z-index: -1;
-        overflow: hidden;
-        pointer-events: none;
-    }
-
-    .input-area textarea {
-        width: 100%;
-        height: 100%;
-        border: none;
-        outline: none;
-        resize: none;
-        padding: 0;
-        margin: 0;
-    }
+/* Tooltip hiển thị Pinyin/Nghĩa */
+[data-theme="mandarin"] .tooltip-word {
+    /* Đẩy đường chấm chấm xuống */
+    border-bottom: 2px dotted rgba(255, 255, 255, 0.3);
 }
 
 [data-theme="coffee"] {
