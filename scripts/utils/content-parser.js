@@ -3,13 +3,13 @@ import { convertMarkdownToPlain } from "../utils.js";
 
 const TIMESTAMP_REGEX = /^([\d.]+)\s+([\d.]+)/;
 
-// Hàm kiểm tra ký tự CJK (Trung/Nhật/Hàn) và dấu câu toàn khổ
+// [HÀM MỚI] Kiểm tra ký tự CJK (Trung/Nhật/Hàn) và dấu câu toàn khổ
+// \u3000-\u303f: Dấu câu CJK
+// \uff00-\uffef: Dấu câu Fullwidth (bao gồm dấu phẩy ，)
+// \u4e00-\u9fa5: Chữ Hán
+// \uac00-\ud7af: Tiếng Hàn (Hangul)
 function isCJK(char) {
     if (!char) return false;
-    // \u3000-\u303f: CJK Symbols and Punctuation (bao gồm dấu 。 ， 、)
-    // \uff00-\uffef: Fullwidth Forms (bao gồm dấu chấm hỏi ？ chấm than ！)
-    // \u4e00-\u9fa5: CJK Unified Ideographs (Chữ Hán)
-    // \uac00-\ud7af: Hangul (Tiếng Hàn)
     return /[\u3000-\u303f\uff00-\uffef\u4e00-\u9fa5\uac00-\ud7af]/.test(char);
 }
 
@@ -104,7 +104,6 @@ export function parseUnified(rawContent) {
     assembleData(blocks, result);
 
     // BƯỚC 3: Chuẩn hóa lần cuối
-    // [FIX QUAN TRỌNG] Chỉ trimEnd(). 
     if (result.text) {
         result.text = result.text.trimEnd();
     }
@@ -146,15 +145,18 @@ function formatHtmlContent(text) {
 
 function assembleData(blocks, result) {
     let currentParagraphHtml = "";
-
-    // Biến theo dõi xem block trước đó có phải là ngắt đoạn không
     let lastBlockWasBreak = false;
+
+    // [HÀM SỬA LỖI] Biến theo dõi ký tự cuối của khối nội dung trước đó trong cùng đoạn
+    // Dùng để quyết định việc thêm dấu cách trong HTML
+    let lastRawChar = null;
 
     const flushParagraph = () => {
         if (currentParagraphHtml) {
             result.html += `<p>${currentParagraphHtml}</p>`;
             result.html += '<span class="newline-char">↵</span>';
             currentParagraphHtml = "";
+            lastRawChar = null; // Reset khi qua đoạn mới
         }
     };
 
@@ -164,42 +166,32 @@ function assembleData(blocks, result) {
             if (block.type === 'header') {
                 result.html += `<h3 class="visual-header">${block.content}</h3>`;
             }
-            lastBlockWasBreak = true; // Đánh dấu là vừa có ngắt dòng/đoạn
+            lastBlockWasBreak = true;
             return;
         }
 
-        // Xử lý Text cho Engine
+        // --- 1. XỬ LÝ TEXT CHO TYPING ENGINE (result.text) ---
         const cleanFragment = cleanForTyping(block.content);
-
-        // Kiểm tra xem sau khi lọc, block này có còn nội dung gõ không
         const hasTypingContent = cleanFragment.length > 0 && cleanFragment.trim().length > 0;
-
         const isSkippedLine = !hasTypingContent && block.content.trim().length > 0;
 
         if (hasTypingContent) {
-            // Logic nối chuỗi thông minh:
             let prefix = "";
             if (result.text.length > 0) {
                 const endsWithSpace = result.text.endsWith(" ");
                 const startsWithSpace = cleanFragment.startsWith(" ");
 
                 if (!endsWithSpace && !startsWithSpace) {
-                    // MẶC ĐỊNH: Thêm dấu cách
-                    prefix = " ";
+                    prefix = " "; // Mặc định thêm dấu cách
 
-                    // LOGIC TÙY CHỈNH CHO CJK (TIẾNG TRUNG/HÀN):
-                    // Nếu KHÔNG PHẢI là chuyển đoạn (Break Paragraph)
+                    // Nếu không phải là ngắt đoạn, kiểm tra CJK để xóa dấu cách
                     if (!lastBlockWasBreak) {
                         const lastChar = result.text[result.text.length - 1];
                         const firstChar = cleanFragment[0];
-
-                        // Nếu cả 2 ký tự giáp ranh đều là CJK -> XÓA dấu cách
                         if (isCJK(lastChar) && isCJK(firstChar)) {
                             prefix = "";
                         }
                     }
-                    // Nếu lastBlockWasBreak = true (vừa qua 1 dòng trống), 
-                    // giữ nguyên prefix=" " để tách đoạn văn ra.
                 }
             }
 
@@ -213,8 +205,6 @@ function assembleData(blocks, result) {
                     text: cleanFragment.trim()
                 });
             }
-
-            // Đã xử lý xong text block, reset trạng thái break
             lastBlockWasBreak = false;
         }
         else if (isSkippedLine) {
@@ -224,11 +214,34 @@ function assembleData(blocks, result) {
             lastBlockWasBreak = false;
         }
 
-        // Xử lý HTML
+        // --- 2. XỬ LÝ HIỂN THỊ HTML (result.html) ---
         const speakerHtml = block.speaker ? `<span class="speaker-label">${block.speaker}: </span>` : "";
         const contentHtml = formatHtmlContent(block.content);
-        const htmlPrefix = currentParagraphHtml ? " " : "";
+
+        let htmlPrefix = "";
+
+        // Logic nối chuỗi cho HTML
+        if (currentParagraphHtml) {
+            htmlPrefix = " "; // Mặc định có dấu cách
+
+            // Nếu có ký tự trước đó, kiểm tra CJK để xóa dấu cách
+            if (lastRawChar && block.content) {
+                const firstChar = block.content[0];
+
+                // Chỉ xóa dấu cách nếu không có speaker label (vì label cần tách biệt)
+                // và cả 2 ký tự giáp ranh đều là CJK
+                if (!block.speaker && isCJK(lastRawChar) && isCJK(firstChar)) {
+                    htmlPrefix = "";
+                }
+            }
+        }
+
         currentParagraphHtml += `${htmlPrefix}${speakerHtml}${contentHtml}`;
+
+        // Cập nhật ký tự cuối cùng để dùng cho vòng lặp sau
+        if (block.content && block.content.length > 0) {
+            lastRawChar = block.content[block.content.length - 1];
+        }
     });
 
     flushParagraph();
