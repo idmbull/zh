@@ -1,16 +1,16 @@
-// scripts/utils/content-parser.js
 import { convertMarkdownToPlain } from "../utils.js";
 
 const TIMESTAMP_REGEX = /^([\d.]+)\s+([\d.]+)/;
 
-// [HÀM MỚI] Kiểm tra ký tự CJK (Trung/Nhật/Hàn) và dấu câu toàn khổ
-// \u3000-\u303f: Dấu câu CJK
-// \uff00-\uffef: Dấu câu Fullwidth (bao gồm dấu phẩy ，)
-// \u4e00-\u9fa5: Chữ Hán
-// \uac00-\ud7af: Tiếng Hàn (Hangul)
+// [CẬP NHẬT] Kiểm tra ký tự CJK mở rộng
+// \u2000-\u206f: General Punctuation (QUAN TRỌNG: Chứa “ ” ‘ ’ … —)
+// \u3000-\u303f: CJK Symbols and Punctuation (Dấu câu CJK 。 、 【 】)
+// \uff00-\uffef: Fullwidth Forms (Dấu câu toàn khổ ： ！ ？ ，)
+// \u4e00-\u9fa5: CJK Unified Ideographs (Chữ Hán)
+// \uac00-\ud7af: Hangul (Tiếng Hàn)
 function isCJK(char) {
     if (!char) return false;
-    return /[\u3000-\u303f\uff00-\uffef\u4e00-\u9fa5\uac00-\ud7af]/.test(char);
+    return /[\u2000-\u206f\u3000-\u303f\uff00-\uffef\u4e00-\u9fa5\uac00-\ud7af]/.test(char);
 }
 
 // Hàm làm sạch cơ bản cho metadata
@@ -37,7 +37,6 @@ function cleanForTyping(text) {
     s = s.replace(/\^\[[^\]]+\]/g, '');
 
     // 2. Loại bỏ Skipped Text: `content`
-    // Thay thế bằng chuỗi rỗng, giữ nguyên khoảng trắng xung quanh nó
     s = s.replace(/`[^`]+`/g, '');
 
     // 3. Loại bỏ định dạng Markdown
@@ -47,7 +46,6 @@ function cleanForTyping(text) {
     s = s.replace(/[\r\n\t]+/g, ' ');
 
     // 5. Gộp nhiều dấu cách liên tiếp thành 1 
-    // QUAN TRỌNG: Không dùng trim() ở đây để bảo toàn khoảng trắng dẫn đầu/cuối của fragment
     s = s.replace(/\s+/g, ' ');
 
     return s;
@@ -75,10 +73,8 @@ export function parseUnified(rawContent) {
     let blocks = [];
     let isDictation = lines.some(line => TIMESTAMP_REGEX.test(line.trim()));
 
-    // BƯỚC 1: Phân tách Blocks
     lines.forEach(line => {
         const trimmed = line.trim();
-        // Giữ lại dòng trống để tạo paragraph break
         if (!trimmed) {
             if (blocks.length > 0 && blocks[blocks.length - 1].type !== 'break') {
                 blocks.push({ type: 'break' });
@@ -100,10 +96,8 @@ export function parseUnified(rawContent) {
         }
     });
 
-    // BƯỚC 2: Lắp ráp dữ liệu (Assemble)
     assembleData(blocks, result);
 
-    // BƯỚC 3: Chuẩn hóa lần cuối
     if (result.text) {
         result.text = result.text.trimEnd();
     }
@@ -146,9 +140,6 @@ function formatHtmlContent(text) {
 function assembleData(blocks, result) {
     let currentParagraphHtml = "";
     let lastBlockWasBreak = false;
-
-    // [HÀM SỬA LỖI] Biến theo dõi ký tự cuối của khối nội dung trước đó trong cùng đoạn
-    // Dùng để quyết định việc thêm dấu cách trong HTML
     let lastRawChar = null;
 
     const flushParagraph = () => {
@@ -156,7 +147,7 @@ function assembleData(blocks, result) {
             result.html += `<p>${currentParagraphHtml}</p>`;
             result.html += '<span class="newline-char">↵</span>';
             currentParagraphHtml = "";
-            lastRawChar = null; // Reset khi qua đoạn mới
+            lastRawChar = null;
         }
     };
 
@@ -182,9 +173,7 @@ function assembleData(blocks, result) {
                 const startsWithSpace = cleanFragment.startsWith(" ");
 
                 if (!endsWithSpace && !startsWithSpace) {
-                    prefix = " "; // Mặc định thêm dấu cách
-
-                    // Nếu không phải là ngắt đoạn, kiểm tra CJK để xóa dấu cách
+                    prefix = " ";
                     if (!lastBlockWasBreak) {
                         const lastChar = result.text[result.text.length - 1];
                         const firstChar = cleanFragment[0];
@@ -220,16 +209,12 @@ function assembleData(blocks, result) {
 
         let htmlPrefix = "";
 
-        // Logic nối chuỗi cho HTML
         if (currentParagraphHtml) {
-            htmlPrefix = " "; // Mặc định có dấu cách
+            htmlPrefix = " ";
 
-            // Nếu có ký tự trước đó, kiểm tra CJK để xóa dấu cách
             if (lastRawChar && block.content) {
                 const firstChar = block.content[0];
-
-                // Chỉ xóa dấu cách nếu không có speaker label (vì label cần tách biệt)
-                // và cả 2 ký tự giáp ranh đều là CJK
+                // Cập nhật: Kiểm tra CJK với cả các dấu ngoặc kép, gạch ngang...
                 if (!block.speaker && isCJK(lastRawChar) && isCJK(firstChar)) {
                     htmlPrefix = "";
                 }
@@ -238,7 +223,6 @@ function assembleData(blocks, result) {
 
         currentParagraphHtml += `${htmlPrefix}${speakerHtml}${contentHtml}`;
 
-        // Cập nhật ký tự cuối cùng để dùng cho vòng lặp sau
         if (block.content && block.content.length > 0) {
             lastRawChar = block.content[block.content.length - 1];
         }
