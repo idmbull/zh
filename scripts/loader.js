@@ -4,7 +4,7 @@ import { parseUnified } from "./utils/content-parser.js";
 
 // ĐỊNH NGHĨA CÁC ĐƯỜNG DẪN GỐC (Rất quan trọng)
 const TEXT_BASE = "library/";
-const AUDIO_BASE = "https://cdn.jsdelivr.net/gh/idmbull/english@main/assets/audio/";
+const AUDIO_BASE = "https://cdn.jsdelivr.net/gh/idmbull/english@main/assets/zh/";
 
 function removeExtension(filename) {
     return filename.replace(/\.[^/.]+$/, "");
@@ -134,4 +134,5 @@ export async function loadUserContent(rawText, fileName) {
         alert("Lỗi đọc file nội dung!");
         return false;
     }
+
 }
